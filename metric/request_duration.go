@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/semconv/v1.20.0/httpconv"
 )
@@ -36,12 +37,16 @@ func NewRequestDurationMillis(cfg BaseConfig) func(next http.Handler) http.Handl
 
 			// record the request duration
 			duration := time.Since(startTime)
+
+			// Get attributes from ServerRequest
+			serverAttrs := httpconv.ServerRequest(cfg.ServerName, r)
+			// Prepend http_target attribute
+			attrs := append([]attribute.KeyValue{attribute.String("http_target", r.URL.RequestURI())}, serverAttrs...)
+
 			histogram.Record(
 				r.Context(),
 				int64(duration.Milliseconds()),
-				otelmetric.WithAttributes(
-					httpconv.ServerRequest(cfg.ServerName, r)...,
-				),
+				otelmetric.WithAttributes(attrs...),
 			)
 		})
 	}
